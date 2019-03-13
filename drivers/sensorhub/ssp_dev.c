@@ -233,8 +233,7 @@ static int ssp_probe(struct i2c_client *client,
 		goto err_read_reg;
 	}
 
-	wake_lock_init(&data->ssp_wake_lock,
-		WAKE_LOCK_SUSPEND, "ssp_wake_lock");
+	wakeup_source_init(&data->ssp_wake_lock, "ssp_wake_lock");
 
 	iRet = initialize_input_dev(data);
 	if (iRet < 0) {
@@ -308,7 +307,7 @@ err_create_workqueue:
 err_akmd_device_register:
 	remove_input_dev(data);
 err_input_register_device:
-	wake_lock_destroy(&data->ssp_wake_lock);
+	wakeup_source_trash(&data->ssp_wake_lock);
 err_read_reg:
 err_reset_null:
 	kfree(data);
@@ -349,7 +348,7 @@ static void ssp_shutdown(struct i2c_client *client)
 	del_timer_sync(&data->debug_timer);
 	cancel_work_sync(&data->work_debug);
 	destroy_workqueue(data->debug_wq);
-	wake_lock_destroy(&data->ssp_wake_lock);
+	wakeup_source_trash(&data->ssp_wake_lock);
 
 	toggle_mcu_reset(data);
 
