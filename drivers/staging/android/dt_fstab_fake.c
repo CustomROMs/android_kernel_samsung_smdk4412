@@ -121,10 +121,19 @@ DT_FILE_INIT(fstab_compatible, "android,fstab")
 DT_FILE_INIT(fstab_name, "fstab")
 
 static char systemblockdevice[50];
+
 #ifdef CONFIG_ANDROID_FSTAB_FAKE_SYSTEM_MNT_POINT
 DT_PARTITION_INIT1(system, systemblockdevice, "wait", "ro", "ext4", "/system_root")
 #else
 DT_PARTITION_INIT(system, systemblockdevice, "wait", "ro", "ext4")
+#endif
+
+#if defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_T0_LTE)
+static char firmwareblockdevice[50];
+DT_PARTITION_INIT1(firmware, firmwareblockdevice, "wait", "ro,shortname=lower,fmask=0133,dmask=0022", "vfat", "/firmware")
+
+static char tombstonesblockdevice[50];
+DT_PARTITION_INIT1(tombstones, tombstonesblockdevice, "wait,check", "noatime,nosuid,nodev,journal_async_commit,errors=panic", "ext4", "/tombstones")
 #endif
 
 static int __init dt_fstab_proc_init(void)
@@ -146,6 +155,14 @@ static int __init dt_fstab_proc_init(void)
 	DT_PARTITION_CREATE(system)
 #endif
 
+#if defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_T0_LTE)
+	strcpy(firmwareblockdevice, "/dev/block/platform/dw_mmc/by-name/RADIO");
+	DT_PARTITION_CREATE1(firmware)
+
+	strcpy(tombstonesblockdevice, "/dev/block/platform/dw_mmc/by-name/TOMBSTONES");
+	DT_PARTITION_CREATE1(tombstones)
+#endif
+
 	return 0;
 }
 
@@ -155,6 +172,11 @@ static void __exit dt_fstab_proc_exit(void)
 	DT_PARTITION_REMOVE1(system)
 #else
 	DT_PARTITION_REMOVE(system)
+#endif
+
+#if defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_T0_LTE)
+	DT_PARTITION_REMOVE1(firmware)
+	DT_PARTITION_REMOVE1(tombstones)
 #endif
 
 	// Cleanup basic hierarchy
