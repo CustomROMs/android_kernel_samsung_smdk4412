@@ -124,13 +124,6 @@ config ANDROID_LMK_ADJ_RBTREE
 	  Use oom_score_adj rbtree to select the best proecss to kill
 	  when system in low memory status.
 
-config ANDROID_FSTAB_FAKE
-	bool "Enable android fstab driver for fake DT fstab"
-	depends on PROC_FS
-	---help---
-	  This is intended to allow early mounting partitions
-	  on devices without DT, or where DT can't be modified.
-
 config ANDROID_INTF_ALARM
 	bool "Android alarm driver"
 	depends on RTC_CLASS

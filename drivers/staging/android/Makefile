@@ -7,4 +7,3 @@ obj-$(CONFIG_ANDROID_TIMED_GPIO)	+= timed_gpio.o
 obj-$(CONFIG_ANDROID_LOW_MEMORY_KILLER)	+= lowmemorykiller.o
 obj-$(CONFIG_ANDROID_INTF_ALARM)	+= alarm.o
 obj-$(CONFIG_ANDROID_INTF_ALARM_DEV)	+= alarm-dev.o
-obj-$(CONFIG_ANDROID_FSTAB_FAKE)	+= dt_fstab_fake.o
