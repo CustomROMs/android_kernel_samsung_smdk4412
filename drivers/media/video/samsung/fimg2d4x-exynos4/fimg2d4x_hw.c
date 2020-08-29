@@ -518,13 +518,13 @@ void fimg2d4x_set_rotation(struct fimg2d_control *info, enum rotation rot)
 	dirx = diry = FORWARD_ADDRESSING;
 
 	switch (rot) {
-	case ROT_90:	/* -270 degree */
+	case ROT_270:	/* -270 degree */
 		rev_rot90 = 1;	/* fall through */
 	case ROT_180:
 		dirx = REVERSE_ADDRESSING;
 		diry = REVERSE_ADDRESSING;
 		break;
-	case ROT_270:	/* -90 degree */
+	case ROT_90:	/* -90 degree */
 		rev_rot90 = 1;
 		break;
 	case XFLIP:
