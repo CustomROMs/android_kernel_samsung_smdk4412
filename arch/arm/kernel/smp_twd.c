@@ -18,7 +18,7 @@
 #include <linux/smp.h>
 #include <linux/jiffies.h>
 #include <linux/clockchips.h>
-#include <linux/interrupt.h>
+#include <linux/irq.h>
 #include <linux/io.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
@@ -28,7 +28,7 @@
 #include <asm/hardware/gic.h>
 
 /* set up by the platform code */
-static void __iomem *twd_base;
+void __iomem *twd_base;
 
 static struct clk *twd_clk;
 static unsigned long twd_timer_rate;
@@ -80,7 +80,7 @@ static int twd_set_next_event(unsigned long evt,
  * If a local timer interrupt has occurred, acknowledge and return 1.
  * Otherwise, return 0.
  */
-static int twd_timer_ack(void)
+int twd_timer_ack(void)
 {
 	if (__raw_readl(twd_base + TWD_TIMER_INTSTAT)) {
 		__raw_writel(1, twd_base + TWD_TIMER_INTSTAT);
@@ -95,6 +95,11 @@ static void twd_timer_stop(struct clock_event_device *clk)
 	twd_set_mode(CLOCK_EVT_MODE_UNUSED, clk);
 	disable_percpu_irq(clk->irq);
 }
+
+/* Temporary hack to be removed when all TWD users are converted to
+   the new registration interface */
+void local_timer_stop(struct clock_event_device *clk)
+	__attribute__ ((alias ("twd_timer_stop")));
 
 #ifdef CONFIG_CPU_FREQ
 
@@ -229,9 +234,27 @@ static struct clk *twd_get_clock(void)
 /*
  * Setup the local clock events for a CPU.
  */
-static int __cpuinit twd_timer_setup(struct clock_event_device *clk)
+int __cpuinit twd_timer_setup(struct clock_event_device *clk)
 {
 	struct clock_event_device **this_cpu_clk;
+
+	if (!twd_evt) {
+		int err;
+
+		twd_evt = alloc_percpu(struct clock_event_device *);
+		if (!twd_evt) {
+			pr_err("twd: can't allocate memory\n");
+			return -ENOMEM;
+		}
+
+		err = request_percpu_irq(clk->irq, twd_handler,
+					 "twd", twd_evt);
+		if (err) {
+			pr_err("twd: can't register interrupt %d (%d)\n",
+			       clk->irq, err);
+			return err;
+		}
+	}
 
 	if (!twd_clk)
 		twd_clk = twd_get_clock();
@@ -249,7 +272,8 @@ static int __cpuinit twd_timer_setup(struct clock_event_device *clk)
 	clk->rating = 350;
 	clk->set_mode = twd_set_mode;
 	clk->set_next_event = twd_set_next_event;
-	clk->irq = twd_ppi;
+	if (!clk->irq)
+		clk->irq = twd_ppi;
 
 	this_cpu_clk = __this_cpu_ptr(twd_evt);
 	*this_cpu_clk = clk;
