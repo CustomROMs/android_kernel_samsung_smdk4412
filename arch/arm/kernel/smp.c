@@ -249,8 +249,6 @@ static void __cpuinit smp_store_cpu_info(unsigned int cpuid)
 	store_cpu_topology(cpuid);
 }
 
-static void percpu_timer_setup(void);
-
 /*
  * Skip the secondary calibration on architectures sharing clock
  * with primary cpu. Archs can use ARCH_SKIP_SECONDARY_CALIBRATE
@@ -492,7 +490,21 @@ int local_timer_register(struct local_timer_ops *ops)
 }
 #endif
 
-static void __cpuinit percpu_timer_setup(void)
+int __cpuinit __attribute__ ((weak)) local_timer_setup(struct clock_event_device *clk)
+{
+	if (lt_ops)
+		return lt_ops->setup(clk);
+
+	return -ENXIO;
+}
+
+void __attribute__ ((weak)) local_timer_stop(struct clock_event_device *clk)
+{
+	if (lt_ops)
+		lt_ops->stop(clk);
+}
+
+void __cpuinit percpu_timer_setup(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *evt = &per_cpu(percpu_clockevent, cpu);
@@ -500,7 +512,7 @@ static void __cpuinit percpu_timer_setup(void)
 	evt->cpumask = cpumask_of(cpu);
 	evt->broadcast = smp_timer_broadcast;
 
-	if (!lt_ops || lt_ops->setup(evt))
+	if (local_timer_setup(evt))
 		broadcast_timer_setup(evt);
 }
 
@@ -515,8 +527,7 @@ static void percpu_timer_stop(void)
 	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *evt = &per_cpu(percpu_clockevent, cpu);
 
-	if (lt_ops)
-		lt_ops->stop(evt);
+	local_timer_stop(evt);
 }
 #endif
 
