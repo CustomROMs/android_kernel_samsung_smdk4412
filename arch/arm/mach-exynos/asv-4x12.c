@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <linux/bug.h>
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/io.h>
