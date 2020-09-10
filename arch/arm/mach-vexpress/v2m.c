@@ -46,45 +46,29 @@
 
 static struct map_desc v2m_io_desc[] __initdata = {
 	{
-		.virtual	= V2M_PERIPH,
+		.virtual	= __MMIO_P2V(V2M_PA_CS7),
 		.pfn		= __phys_to_pfn(V2M_PA_CS7),
 		.length		= SZ_128K,
 		.type		= MT_DEVICE,
 	},
 };
 
-static void __iomem *v2m_sysreg_base;
-
-static void __init v2m_sysctl_init(void __iomem *base)
+static void __init v2m_timer_init(void)
 {
 	u32 scctrl;
 
-	if (WARN_ON(!base))
-		return;
-
 	/* Select 1MHz TIMCLK as the reference clock for SP804 timers */
-	scctrl = readl(base + SCCTRL);
+	scctrl = readl(MMIO_P2V(V2M_SYSCTL + SCCTRL));
 	scctrl |= SCCTRL_TIMEREN0SEL_TIMCLK;
 	scctrl |= SCCTRL_TIMEREN1SEL_TIMCLK;
-	writel(scctrl, base + SCCTRL);
-}
+	writel(scctrl, MMIO_P2V(V2M_SYSCTL + SCCTRL));
 
-static void __init v2m_sp804_init(void __iomem *base, unsigned int irq)
-{
-	if (WARN_ON(!base || irq == NO_IRQ))
-		return;
+	writel(0, MMIO_P2V(V2M_TIMER0) + TIMER_CTRL);
+	writel(0, MMIO_P2V(V2M_TIMER1) + TIMER_CTRL);
 
-	writel(0, base + TIMER_1_BASE + TIMER_CTRL);
-	writel(0, base + TIMER_2_BASE + TIMER_CTRL);
-
-	sp804_clocksource_init(base + TIMER_2_BASE, "v2m-timer1");
-	sp804_clockevents_init(base + TIMER_1_BASE, irq, "v2m-timer0");
-}
-
-static void __init v2m_timer_init(void)
-{
-	v2m_sysctl_init(ioremap(V2M_SYSCTL, SZ_4K));
-	v2m_sp804_init(ioremap(V2M_TIMER01, SZ_4K), IRQ_V2M_TIMER0);
+	sp804_clocksource_init(MMIO_P2V(V2M_TIMER1), "v2m-timer1");
+	sp804_clockevents_init(MMIO_P2V(V2M_TIMER0), IRQ_V2M_TIMER0,
+		"v2m-timer0");
 }
 
 static struct sys_timer v2m_timer = {
@@ -104,14 +88,14 @@ int v2m_cfg_write(u32 devfn, u32 data)
 	devfn |= SYS_CFG_START | SYS_CFG_WRITE;
 
 	spin_lock(&v2m_cfg_lock);
-	val = readl(v2m_sysreg_base + V2M_SYS_CFGSTAT);
-	writel(val & ~SYS_CFG_COMPLETE, v2m_sysreg_base + V2M_SYS_CFGSTAT);
+	val = readl(MMIO_P2V(V2M_SYS_CFGSTAT));
+	writel(val & ~SYS_CFG_COMPLETE, MMIO_P2V(V2M_SYS_CFGSTAT));
 
-	writel(data, v2m_sysreg_base +  V2M_SYS_CFGDATA);
-	writel(devfn, v2m_sysreg_base + V2M_SYS_CFGCTRL);
+	writel(data, MMIO_P2V(V2M_SYS_CFGDATA));
+	writel(devfn, MMIO_P2V(V2M_SYS_CFGCTRL));
 
 	do {
-		val = readl(v2m_sysreg_base + V2M_SYS_CFGSTAT);
+		val = readl(MMIO_P2V(V2M_SYS_CFGSTAT));
 	} while (val == 0);
 	spin_unlock(&v2m_cfg_lock);
 
@@ -125,26 +109,20 @@ int v2m_cfg_read(u32 devfn, u32 *data)
 	devfn |= SYS_CFG_START;
 
 	spin_lock(&v2m_cfg_lock);
-	writel(0, v2m_sysreg_base + V2M_SYS_CFGSTAT);
-	writel(devfn, v2m_sysreg_base + V2M_SYS_CFGCTRL);
+	writel(0, MMIO_P2V(V2M_SYS_CFGSTAT));
+	writel(devfn, MMIO_P2V(V2M_SYS_CFGCTRL));
 
 	mb();
 
 	do {
 		cpu_relax();
-		val = readl(v2m_sysreg_base + V2M_SYS_CFGSTAT);
+		val = readl(MMIO_P2V(V2M_SYS_CFGSTAT));
 	} while (val == 0);
 
-	*data = readl(v2m_sysreg_base + V2M_SYS_CFGDATA);
+	*data = readl(MMIO_P2V(V2M_SYS_CFGDATA));
 	spin_unlock(&v2m_cfg_lock);
 
 	return !!(val & SYS_CFG_ERR);
-}
-
-void __init v2m_flags_set(u32 data)
-{
-	writel(~0, v2m_sysreg_base + V2M_SYS_FLAGSCLR);
-	writel(data, v2m_sysreg_base + V2M_SYS_FLAGSSET);
 }
 
 
@@ -232,7 +210,7 @@ static struct platform_device v2m_usb_device = {
 
 static void v2m_flash_set_vpp(struct platform_device *pdev, int on)
 {
-	writel(on != 0, v2m_sysreg_base + V2M_SYS_FLASH);
+	writel(on != 0, MMIO_P2V(V2M_SYS_FLASH));
 }
 
 static struct physmap_flash_data v2m_flash_data = {
@@ -286,7 +264,7 @@ static struct platform_device v2m_cf_device = {
 
 static unsigned int v2m_mmci_status(struct device *dev)
 {
-	return readl(v2m_sysreg_base + V2M_SYS_MCI) & (1 << 0);
+	return readl(MMIO_P2V(V2M_SYS_MCI)) & (1 << 0);
 }
 
 static struct mmci_platform_data v2m_mmci_data = {
@@ -399,7 +377,7 @@ static void __init v2m_init_early(void)
 {
 	ct_desc->init_early();
 	clkdev_add_table(v2m_lookups, ARRAY_SIZE(v2m_lookups));
-	versatile_sched_clock_init(v2m_sysreg_base + V2M_SYS_24MHZ, 24000000);
+	versatile_sched_clock_init(MMIO_P2V(V2M_SYS_24MHZ), 24000000);
 }
 
 static void v2m_power_off(void)
@@ -428,8 +406,7 @@ static void __init v2m_populate_ct_desc(void)
 	u32 current_tile_id;
 
 	ct_desc = NULL;
-	current_tile_id = readl(v2m_sysreg_base + V2M_SYS_PROCID0)
-				& V2M_CT_ID_MASK;
+	current_tile_id = readl(MMIO_P2V(V2M_SYS_PROCID0)) & V2M_CT_ID_MASK;
 
 	for (i = 0; i < ARRAY_SIZE(ct_descs) && !ct_desc; ++i)
 		if (ct_descs[i]->id == current_tile_id)
@@ -444,7 +421,6 @@ static void __init v2m_populate_ct_desc(void)
 static void __init v2m_map_io(void)
 {
 	iotable_init(v2m_io_desc, ARRAY_SIZE(v2m_io_desc));
-	v2m_sysreg_base = ioremap(V2M_SYSREGS, SZ_4K);
 	v2m_populate_ct_desc();
 	ct_desc->map_io();
 }
