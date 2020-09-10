@@ -270,7 +270,7 @@ static inline int skip_secondary_calibrate(void)
 asmlinkage void __cpuinit secondary_start_kernel(void)
 {
 	struct mm_struct *mm = &init_mm;
-	unsigned int cpu;
+	unsigned int cpu = smp_processor_id();
 
 	/*
 	 * The identity mapping is uncached (strongly ordered), so
