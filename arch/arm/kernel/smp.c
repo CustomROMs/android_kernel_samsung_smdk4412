@@ -527,10 +527,6 @@ static void ipi_cpu_stop(unsigned int cpu)
 	flush_cache_all();
 	local_flush_tlb_all();
 
-#ifdef CONFIG_HOTPLUG_CPU
-	platform_cpu_kill(cpu);
-#endif
-
 	while (1)
 		cpu_relax();
 }
@@ -654,9 +650,21 @@ void smp_send_reschedule(int cpu)
 	smp_cross_call(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+static void smp_kill_cpus(cpumask_t *mask)
+{
+	unsigned int cpu;
+	for_each_cpu(cpu, mask)
+		platform_cpu_kill(cpu);
+}
+#else
+static void smp_kill_cpus(cpumask_t *mask) { }
+#endif
+
 void smp_send_stop(void)
 {
 	unsigned long timeout;
+	struct cpumask mask;
 
 	cpumask_copy(&mask, cpu_online_mask);
 	cpumask_clear_cpu(smp_processor_id(), &mask);
@@ -670,6 +678,8 @@ void smp_send_stop(void)
 
 	if (num_online_cpus() > 1)
 		pr_warning("SMP: failed to stop secondary CPUs\n");
+
+	smp_kill_cpus(&mask);
 }
 
 /*
